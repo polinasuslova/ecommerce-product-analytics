@@ -1,0 +1,100 @@
+Table raw.category_translation {
+  product_category_name text [pk]
+  product_category_name_english text [not null, unique]
+}
+
+Table raw.customers {
+  customer_id char(32) [pk]
+  customer_unique_id char(32) [not null]
+  customer_zip_code_prefix int [not null]
+  customer_city text [not null]
+  customer_state char(2) [not null]
+}
+
+Table raw.orders {
+  order_id char(32) [pk]
+  customer_id char(32) [not null]
+  order_status text [not null]
+  order_purchase_timestamp timestamp [not null]
+  order_approved_at timestamp
+  order_delivered_carrier_date timestamp
+  order_delivered_customer_date timestamp
+  order_estimated_delivery_date timestamp [not null]
+}
+
+Table raw.sellers {
+  seller_id char(32) [pk]
+  seller_zip_code_prefix int [not null]
+  seller_city text [not null]
+  seller_state char(2) [not null]
+}
+
+Table raw.products {
+  product_id char(32) [pk]
+  product_category_name text
+  product_name_lenght int
+  product_description_lenght int
+  product_photos_qty int
+  product_weight_g int
+  product_length_cm int
+  product_height_cm int
+  product_width_cm int
+}
+
+Table raw.order_items {
+  order_id char(32) [not null]
+  order_item_id int [not null]
+  product_id char(32) [not null]
+  seller_id char(32) [not null]
+  shipping_limit_date timestamp [not null]
+  price numeric(10,2) [not null]
+  freight_value numeric(10,2) [not null]
+
+  indexes {
+    (order_id, order_item_id) [pk]
+  }
+}
+
+Table raw.payments {
+  order_id char(32) [not null]
+  payment_sequential int [not null]
+  payment_type text [not null]
+  payment_installments int [not null]
+  payment_value numeric(12,2) [not null]
+
+  indexes {
+    (order_id, payment_sequential) [pk]
+  }
+}
+
+Table raw.reviews {
+  review_id char(32) [not null]
+  order_id char(32) [not null]
+  review_score int [not null]
+  review_comment_title text
+  review_comment_message text
+  review_creation_date timestamp [not null]
+  review_answer_timestamp timestamp [not null]
+
+  indexes {
+    (review_id, order_id) [pk]
+  }
+}
+
+Table raw.geolocation {
+  geolocation_id bigint [pk, increment]
+  geolocation_zip_code_prefix int [not null]
+  geolocation_lat numeric(10,7) [not null]
+  geolocation_lng numeric(10,7) [not null]
+  geolocation_city text [not null]
+  geolocation_state char(2) [not null]
+}
+
+Ref: raw.orders.customer_id > raw.customers.customer_id
+
+Ref: raw.order_items.order_id > raw.orders.order_id
+Ref: raw.order_items.product_id > raw.products.product_id
+Ref: raw.order_items.seller_id > raw.sellers.seller_id
+
+Ref: raw.payments.order_id > raw.orders.order_id
+Ref: raw.reviews.order_id > raw.orders.order_id
