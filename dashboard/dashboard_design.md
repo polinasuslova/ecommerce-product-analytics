@@ -269,8 +269,8 @@ The final dashboard screenshots are stored in:
 
 ```text
 dashboard/screenshots/
-├── Executive Overview.png
-├── Customer Analytics.png
-├── Delivery and Reviews.png
-└── Products and Geography.png
+├── Executive Overview — Executive_Overview.png
+├── Customer Analytics — Customer_Analytics.png
+├── Delivery and Reviews — Delivery_and_Reviews.png
+└── Products and Geography — Products_and_Geography.png
 ```

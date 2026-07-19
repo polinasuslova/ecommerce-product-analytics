@@ -316,57 +316,78 @@ DASHBOARD_QUERIES: Mapping[str, str] = {
                 order_id,
                 customer_unique_id,
                 order_purchase_timestamp,
-                order_items_value,
 
                 DATE_TRUNC(
                     'month',
                     order_purchase_timestamp
                 )::DATE AS month,
 
-                ROW_NUMBER() OVER (
-                    PARTITION BY customer_unique_id
-                    ORDER BY
-                        order_purchase_timestamp,
-                        order_id
-                ) AS customer_order_number
+                order_items_value
 
             FROM analytics.order_metrics
 
             WHERE order_status = 'delivered'
+            AND customer_unique_id IS NOT NULL
+        ),
+
+        customer_first_orders AS (
+            SELECT
+                customer_unique_id,
+
+                MIN(month)
+                    AS first_order_month
+
+            FROM delivered_orders
+
+            GROUP BY
+                customer_unique_id
+        ),
+
+        monthly_customer_activity AS (
+            SELECT
+                orders.month,
+                orders.customer_unique_id,
+                first_orders.first_order_month,
+
+                COUNT(DISTINCT orders.order_id)
+                    AS customer_orders,
+
+                SUM(orders.order_items_value)
+                    AS customer_gmv
+
+            FROM delivered_orders AS orders
+
+            INNER JOIN customer_first_orders AS first_orders
+                ON orders.customer_unique_id
+                    = first_orders.customer_unique_id
+
+            GROUP BY
+                orders.month,
+                orders.customer_unique_id,
+                first_orders.first_order_month
         )
 
         SELECT
             month,
 
-            COUNT(DISTINCT customer_unique_id)
+            COUNT(*)
                 AS active_customers,
 
-            COUNT(
-                DISTINCT CASE
-                    WHEN customer_order_number = 1
-                    THEN customer_unique_id
-                END
+            COUNT(*) FILTER (
+                WHERE month = first_order_month
             ) AS new_customers,
 
-            COUNT(
-                DISTINCT CASE
-                    WHEN customer_order_number > 1
-                    THEN customer_unique_id
-                END
+            COUNT(*) FILTER (
+                WHERE month > first_order_month
             ) AS repeat_customers,
 
             ROUND(
                 (
-                    COUNT(
-                        DISTINCT CASE
-                            WHEN customer_order_number > 1
-                            THEN customer_unique_id
-                        END
+                    COUNT(*) FILTER (
+                        WHERE month > first_order_month
                     )::NUMERIC
                     / NULLIF(
-                        COUNT(
-                            DISTINCT customer_unique_id
-                        ),
+                        COUNT(*),
                         0
                     )
                     * 100
@@ -374,28 +395,26 @@ DASHBOARD_QUERIES: Mapping[str, str] = {
                 2
             ) AS repeat_customer_share_percent,
 
-            COUNT(DISTINCT order_id)
+            SUM(customer_orders)
                 AS delivered_orders,
 
             ROUND(
-                SUM(order_items_value)::NUMERIC,
+                SUM(customer_gmv)::NUMERIC,
                 2
             ) AS gmv,
 
             ROUND(
                 (
-                    COUNT(DISTINCT order_id)::NUMERIC
+                    SUM(customer_orders)::NUMERIC
                     / NULLIF(
-                        COUNT(
-                            DISTINCT customer_unique_id
-                        ),
+                        COUNT(*),
                         0
                     )
                 ),
                 3
             ) AS orders_per_active_customer
 
-        FROM delivered_orders
+        FROM monthly_customer_activity
 
         GROUP BY
             month
@@ -576,9 +595,18 @@ DASHBOARD_QUERIES: Mapping[str, str] = {
                     ORDER BY recency
                 ) AS recency_score,
 
-                NTILE(4) OVER (
-                    ORDER BY frequency
-                ) AS frequency_score,
+                CASE
+                    WHEN frequency = 1
+                        THEN 1
+
+                    WHEN frequency = 2
+                        THEN 2
+
+                    WHEN frequency = 3
+                        THEN 3
+
+                    ELSE 4
+                END AS frequency_score,
 
                 NTILE(4) OVER (
                     ORDER BY monetary
@@ -598,35 +626,30 @@ DASHBOARD_QUERIES: Mapping[str, str] = {
                 monetary_score,
 
                 CASE
-                    WHEN recency_score >= 3
+                    WHEN recency_score = 4
                         AND frequency_score >= 3
                         AND monetary_score >= 3
                         THEN 'Champions'
 
-                    WHEN frequency_score >= 3
-                        AND recency_score >= 2
+                    WHEN recency_score >= 3
+                        AND frequency_score >= 2
+                        AND monetary_score >= 2
                         THEN 'Loyal Customers'
 
                     WHEN recency_score = 4
-                        AND frequency = 1
-                        AND monetary_score <= 2
+                        AND frequency_score = 1
                         THEN 'New Customers'
 
                     WHEN recency_score >= 3
-                        AND frequency = 1
                         AND monetary_score >= 3
                         THEN 'High-Value Recent'
 
                     WHEN recency_score <= 2
-                        AND (
-                            frequency_score >= 3
-                            OR monetary_score >= 3
-                        )
+                        AND frequency_score >= 2
                         THEN 'At Risk'
 
                     WHEN recency_score = 1
-                        AND frequency_score <= 2
-                        AND monetary_score <= 2
+                        AND frequency_score = 1
                         THEN 'Lost Customers'
 
                     ELSE 'Regular Customers'
