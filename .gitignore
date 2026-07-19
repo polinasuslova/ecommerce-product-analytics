@@ -225,3 +225,6 @@ data/raw/*.csv
 
 # Environment variables
 .env
+
+# Dashboard datasets
+dashboard/data/*.csv
