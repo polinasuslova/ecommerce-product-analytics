@@ -1,7 +1,10 @@
 pandas
+numpy
 SQLAlchemy
 psycopg2-binary
 python-dotenv
 scipy
 statsmodels
 scikit-learn
+matplotlib
+seaborn
